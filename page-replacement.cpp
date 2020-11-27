@@ -6,7 +6,8 @@
 #define ACCESS 'A'
 #define FREE 'L'
 #define COMMENT 'C'
-#define END 'F'
+#define END_SET_REQUESTS 'F'
+#define EXIT 'E'
 
 #include <map>
 #include <cctype>
@@ -72,7 +73,10 @@ int main(void)
                     case COMMENT:
                         cout << "Comentario" << endl;
                         break;
-                    case END:
+                    case END_SET_REQUESTS:
+                        cout << "Final de conjunto de solicitudes" << endl;
+                        break;
+                    case EXIT:
                         cout << "Fin" << endl;
                         break;
                     default:
