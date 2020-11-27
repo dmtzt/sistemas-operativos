@@ -1,0 +1,189 @@
+Manejador de memoria virtual utilizando paginación
+
+Estructuras de datos:
+1. Memoria real M de 2048 bytes con páginas de 16 bytes
+2. Memoria S de 4096 bytes reservada para swapping
+
+INPUT:
+Archivo con peticiones que hace el SO para administrar memoria virtual
+
+Formatos:
+a. P n p    Cargar un proceso p de n bytes, n y p son números
+            P 534 5834  asignar 534 bytes al proceso 5834
+            ESPECIFICACIONES:
+                - Un proceso se carga completo a memoria en una sola solicitud
+                - La longitud máxima de un proceso es de 2048 bytes
+                - Los marcos pueden no ser contiguos si no se encuentra un área de la longitud requerida
+                - Se tendrán que swappear las páginas contenidas en los marcos si no hay marcos vacíos suficientes
+                - Si hay swapping, se debe registrar dónde queda cada página en el área S para cuando se requieran volver a cargar
+                - Puede ser necesario registrar un timestamp, bit de referencia o bit de modificación según lo requiera la estrategia
+            Tiempos:
+                - 1 segundo: Cargar una página
+                - 1 segundo: Las operaciones de swap-in y swap-out por cada página
+                - 0.1 segundos: Accesar o modificar una dirección de página ya cargada
+                Ejemplo: P 534 5834 toma 34 segundos, 534/16 = 33.375
+            Debugging:
+                - Es posible registrar número de proceso y número de página que estén cargados en cada macro
+            OUTPUT:
+                - Imprimir cada comando con la lista de marcos de página asignados
+                - Si se hizo swapping, una lista de los marcos que fueron swappeados para hacer el hueco
+                    - Para cada marco, indicar página que contenía el marco, proceso, número de página del proceso, dónde quedó la página en el area de swapping
+b. A d p m  Acceder a la dirección virtual d del proceso p
+            Si m es 0, la dirección solo se lee
+            Si m es 1, se lee y se modifica
+            El valor de d puede ser desde 0 hasta la dirección virtual máxima
+            A 17 5 0    acceder y leer la dirección virtual 17 del proceso 5
+            PROCESO:
+                - Localizar dódne se encuentra la página que contiene esa dirección
+                    - Puede estar en memoria real o en swapping
+                    - Si se hizo swapping, ocurre un page fault
+                    - Cargar página si hubo page fault y hacer cambios necesarios
+            OUTPUT:
+                - Comando, dirección en memoria real
+                - Si se encontraba en swapping indicar en dónde estaba en S y dónde quedó en M
+                - Indicar si se requirió reemplazo
+c. L p      Liberar las páginas del proceso p
+            PROCESO:
+                - Liberar todas las páginas del proceso p
+                - Tanto en M como en S
+                - Los pedazos quedan libres para otras operaciones
+            OUTPUT:
+                - Lista de marcos de página que se libreraron
+d. C        Comentario
+                - Linea de comentarios
+                - Desplegarla
+e. F        Final de un conjunto de solicitudes
+            OUTPUT:
+                - Reporte de estadísticas:
+                    - Turnaround time
+                    - Turnaround promedio
+                    - Turnaround promedio
+                    - Número de page faults por proceso
+                    - Número de operaciones de swap-in y swap-out
+d. E        Última línea del archivo
+            PROCESS:
+                - Termina el programa
+            OUTPUT:
+                - Comando de INPUT y mensaje de despedida
+
+
+
+ALGORITMO
+Crear memoria real M de 2048 bytes
+Crear área reservada para swapping S de 4096 bytes
+Definir tamaño de página de 16 bytes
+
+índices en M: map<numProcess, map<numPage, numFrame>> indicesM
+Índices en S: map<numProcess, map<numPage, numFrame>> indicesS
+    Si numFrame < 0, la página no está en dicha estructura
+
+Page faults por proceso: map<int, int> pageFaultsCount
+Operaciones de swapping: int swapCount
+
+Crear estructura para registrar número de proceso y número de página almacenada por marco para debugging
+
+Iniciar double como reloj para timestamps
+
+Solicitar estrategia de reemplazo: FIFO o LRU
+
+Leer input mientras el usuario no termine el programa
+    Menú:
+    a. Cargar un proceso
+    b. Acceder a y/o modificar la dirección virtual de un proceso
+    c. Liberar las páginas de un proceso
+    d. Finalizar un conjunto de solicitudes
+    e. Terminar el programa
+    (f. Leer y desplegar comentario)
+
+
+a. Cargar un proceso   P n p    solicitud para cargar un proceso p de n bytes
+    Crear queue exclusiva para el proceso <numPag, numProcess, indexS> queueReplaced    número de página, proceso y dónde quedó en S
+
+    Registrar tiempo de inicio del proceso
+
+    Para cada página
+        Si hay marco de página libre
+            Asignar marco libre
+            Registrar número de página y número de marco en indicesM
+            Actualizar reloj +1 segundo
+        
+        Si no hay suficientes marcos libres
+            Realizar swap-out según estrategia de reemplazo
+            Actualizar contador swapCount
+            Actualizar reemplazo en indicesM
+            Registrar dónde quedó la página reemplazada en indicesS
+            Agregar transacción a queueReplaced
+            Actualizar reloj + 1 segundo
+
+            Asignar marco libre
+            Registrar número de página y número de marco en indicesM
+            Actualizar reloj +1 segundo
+    
+    Registrar información relevante para la estrategia: timestamp, bit de referencia o bit de modificación
+    
+    Actualizar estructura de control
+
+Imprimir:
+    - Comando
+    - Lista de marcos de página asignados: indicesM
+    - Lista de marcos que tuvieron swap-out: queueReplaced
+
+b. Acceder a y/o modificar la dirección virtual de un proceso   A d p m     acceder a la dirección virtual d del proceso p
+    Crear vector exclusivo para el proceso <numPag, numProcess, indexS> replaced    número de página, proceso y dónde quedó en S
+
+    Localizar qué página contiene a la dirección
+
+    Si no está en memoria real
+        Page fault: actualizar contador del proceso
+        Hacer swap-in de la página de S a M
+        Actualizar swapCount
+        Llamar mismo método de carga con reemplazo utilizado en a. y no olvidar actualizar swapCount
+
+    Calcular dirección real correspondiente a la dirección virtual
+
+Imprimir:
+    - Comando
+    - Dirección real correspondiente a la dirección virtual
+    - Indicar dónde estaba en S si se hizo swapping y dónde quedó en memoria real
+    - Marco que tuvo swap-out: replaced
+
+    Si m = 0
+        Leer dirección
+    Si m = 1
+        Modificar dirección
+
+c. Liberar las páginas de un proceso    L p     Liberar las páginas del proceso p
+Queue para lista de liberados en M releasedM
+Queue para lista de liberados en S releasedS
+
+Para cada elemento de indicesM[p]
+    Liberar
+    Actualizar reloj +0.1 segundos
+    
+Para cada elemento de indicesS[p]
+    Liberar
+    Actualizar reloj +0.1 segundos
+
+Registrar tiempo final
+Calcular turnaround time
+
+Imprimir:
+    - Comando
+    - releasedM y releasedS
+
+d. Finalizar un conjunto de solicitudes
+    Calcular turnaround promedio
+    Imprimir:
+        - Comando
+        - Turnaround time por proceso: desde que se carga hasta que se liberan todas sus páginas (diferencia de timestamps)
+        - Turnaround promedio 
+        - Número de page faults por proceso: cada que un marco de página solicitado no se encontraba en memoria real
+        - Número total de operaciones de swap-out y swap-in: swapCount
+
+e. Terminar el programa
+    Imprimir:
+        - Comando
+        - Mensaje de despedida
+
+(f. Leer y desplegar comentario)
+    Leer y desplegar comentario
