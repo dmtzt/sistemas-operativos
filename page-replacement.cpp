@@ -37,7 +37,7 @@ int main(void)
     // Archivo de lectura
     ifstream file;
     // Nombre del archivo
-    string filename = "archivo.txt";
+    string filename = "ArchivoTrabajo.txt";
     // String para almacenar cada solicitud
     string request;
     // Tipo de solicitud

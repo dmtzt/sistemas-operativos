@@ -1,3 +1,0 @@
-C comenzamos…
-P 2048 1 ignora cualquier comentario en la misma línea del comando, como éste.
-A 1 1 0
