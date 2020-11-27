@@ -9,12 +9,16 @@
 #define END_SET_REQUESTS 'F'
 #define EXIT 'E'
 
-#include <map>
+
 #include <cctype>
 #include <iostream>
 #include <fstream>
+#include <map>
+#include <string>
 
 using namespace std;
+
+bool loadProcess(string request);
 
 int main(void)
 {
@@ -58,11 +62,12 @@ int main(void)
             if (isalpha(requestType))
             {
                 requestType = toupper(requestType);
-                cout << requestType << endl;
+                cout << requestType << ": ";
                 switch (requestType)
                 {
                     case LOAD:
                         cout << "Cargar un proceso" << endl;
+                        loadProcess(request);
                         break;
                     case ACCESS:
                         cout << "Acceder a una direccion virtual" << endl;
@@ -84,6 +89,42 @@ int main(void)
                 }
             }
         }
+    } 
+}
+
+bool loadProcess(string request)
+{
+    // Número de bytes y número de proceso
+    string bytes, process;
+    // Control de posición para extracción de datos de solicitud
+    int pos = 2;
+    
+    // Extraer número de bytes
+    bytes = request.substr(pos, request.find(' ', pos) - pos);
+    // Actualizar posición de apoyo para encontrar el siguiente valor
+    pos = request.find(' ', pos) + 1;
+    // Extraer número de proceso
+    process = request.substr(pos, request.find(' ', pos) - pos); 
+    
+    // Verificar que los elementos en bytes y proceso sean digitos
+    for (char digit : bytes)
+    {
+        if (!isdigit(digit))
+            return false;
+    }
+
+    for (char digit : process)
+    {
+        if (!isdigit(digit))
+            return false;
     }
     
+    // Número de bytes y número de proceso como enteros
+    int n = stoi(bytes);
+    int p = stoi(process);;
+    
+    // Imprimir número de bytes y número de proceso
+    cout << n << " " << p << endl;
+
+    return true;
 }
