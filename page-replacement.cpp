@@ -20,6 +20,10 @@ using namespace std;
 
 bool parseArg(string &arg, string request, int &pos);
 bool loadProcess(string request);
+bool accessVirtualAddress(string request);
+bool freeProcess(string request);
+bool comment(string request);
+bool endSetRequests(string request);
 void testString(string s);
 
 int main(void)
@@ -73,15 +77,19 @@ int main(void)
                         break;
                     case ACCESS:
                         cout << "Acceder a una direccion virtual" << endl;
+                        accessVirtualAddress(request);
                         break;
                     case FREE:
                         cout << "Liberar a un proceso" << endl;
+                        freeProcess(request);
                         break;
                     case COMMENT:
                         cout << "Comentario" << endl;
+                        comment(request);
                         break;
                     case END_SET_REQUESTS:
                         cout << "Final de conjunto de solicitudes" << endl;
+                        endSetRequests(request);
                         break;
                     case EXIT:
                         cout << "Fin" << endl;
@@ -96,26 +104,94 @@ int main(void)
 
 bool loadProcess(string request)
 {
+    // Number of bytes and process number
+    string bytes = "", process = "";
+    // Initial position in request for argument extraction
     int pos = 1;
-    // Número de bytes y número de proceso
-    string bytes = "";
-    string process = "";
 
+    // Try parsing number of bytes
     if (!parseArg(bytes, request, pos))
     {
         cout << "El numero de bytes no pudo ser extraido" << endl;
         return false;
     }
+    // Try parsing process number
     else if (!parseArg(process, request, pos))
     {
         cout << "El numero de proceso no pudo ser extraido" << endl;
         return false;
     }
+    // Success
     else
     {
         int n = stoi(bytes);
         int p = stoi(process);
         cout << n << " " << p << endl;
+
+        /* Aquí se carga el proceso según sea FIFO o LRU*/
+
+        return true;
+    }
+}
+
+bool accessVirtualAddress(string request) {
+    // Virtual address, process number and modifier
+    string address = "", process = "", modifier = "";
+    // Initial position in request for argument extraction
+    int pos = 1;
+
+    // Try parsing virtual address
+    if (!parseArg(address, request, pos))
+    {
+        cout << "La dirección virtual no pudo ser extraida" << endl;
+        return false;
+    }
+    // Try parsing process number
+    else if (!parseArg(process, request, pos))
+    {
+        cout << "El numero de proceso no pudo ser extraido" << endl;
+        return false;
+    }
+    // Try parsing modifier
+    else if (!parseArg(modifier, request, pos))
+    {
+        cout << "El modificador no pudo ser extraido" << endl;
+        return false;
+    }
+    // Success
+    else
+    {
+        int d = stoi(address);
+        int p = stoi(process);
+        int m = stoi(modifier);
+        cout << d << " " << p << " " << m << endl;
+
+        /* Aquí se accede a la memoria virtual del proceso*/
+
+        return true;
+    }
+}
+
+bool freeProcess(string request)
+{
+    // Virtual address, process number and modifier
+    string process = "";
+    // Initial position in request for argument extraction
+    int pos = 1;
+
+    // Try parsing process number
+    if (!parseArg(process, request, pos))
+    {
+        cout << "El numero de proceso no pudo ser extraido" << endl;
+        return false;
+    }
+    // Success
+    else
+    {
+        int p = stoi(process);
+        cout << p << endl;
+
+        /* Aquí se libera el proceso*/
 
         return true;
     }
