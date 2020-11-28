@@ -9,26 +9,28 @@
 #define END_SET_REQUESTS 'F'
 #define EXIT 'E'
 
+#define START_TIME 0
+#define END_TIME 1
 
 #include <cctype>
 #include <iostream>
 #include <fstream>
 #include <map>
 #include <string>
+#include <vector>
 
 using namespace std;
 
 bool parseArg(string &arg, string request, int &pos);
-bool loadProcess(string request);
+bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes);
 bool accessVirtualAddress(string request);
-bool freeProcess(string request);
-bool comment(string request);
-bool endSetRequests(string request);
-void testString(string s);
+bool freeProcess(string request, double &clock, map<int, vector<int>> &processTimes);
+void comment(string request);
+void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes);
+//void testString(string s);
 
 int main(void)
 {
-    /*
     // Memoria real M de 2048 bytes
     bool M[MEMORY_SIZE];
     // Área de swapping S de 4096 bytes
@@ -37,14 +39,16 @@ int main(void)
     // Cada proceso tiene un mapa que indica el número de marco asignado a cada página
     // Mapa para almacenar los índices de cada proceso en la memoria real
     map<int, map<int, int> > indicesM;
-    // Mapa para almacenar los índices de cada proceso en el área de swapping
-    map<int, map<int, int> > indicesM;
-    // Mapa para almacenar el número de page faults por proceso
+    // Mapa para los índices de cada proceso en el área de swapping
+    map<int, map<int, int> > indicesS;
+
+    // Mapa para el número de page faults por proceso
     map<int, int> pageFaultsCount;
+    // Mapa para los tiempos de inicio y fin de cada proceso
+    map<int, vector<int>> processTimes;
 
     // Reloj que será actualizado por cada operación
     double clock = 0.0;
-    */
     // Archivo de lectura
     ifstream file;
     // Nombre del archivo
@@ -54,6 +58,7 @@ int main(void)
     // Tipo de solicitud
     char requestType;
 
+    /////////////////////////////////////////////////////////////////////////////////////
     // Abrir archivo
     file.open(filename);
 
@@ -67,29 +72,36 @@ int main(void)
             // Verificar que se trate de una letra
             if (isalpha(requestType))
             {
+                // Imprimir la solicitud
+                cout << request << endl;
+                // Dar formato correcto a tipo de solicitud
                 requestType = toupper(requestType);
-                cout << requestType << ": ";
                 switch (requestType)
                 {
+                    // Cargar un proceso
                     case LOAD:
-                        cout << "Cargar un proceso" << endl;
-                        loadProcess(request);
+                    cout << "Cargar un proceso: ";
+                        loadProcess(request, clock, processTimes);
                         break;
+                    // Acceder a una direccion virtual
                     case ACCESS:
-                        cout << "Acceder a una direccion virtual" << endl;
+                        cout << "Acceder a una direccion virtual: ";
                         accessVirtualAddress(request);
                         break;
+                    // Liberar a un proceso
                     case FREE:
-                        cout << "Liberar a un proceso" << endl;
-                        freeProcess(request);
+                        cout << "Liberar a un proceso: ";
+                        freeProcess(request, clock, processTimes);
                         break;
+                    // Comentario
                     case COMMENT:
-                        cout << "Comentario" << endl;
+                        cout << "Comentario: " << endl;
                         comment(request);
                         break;
+                    // Fin de conjunto de solicitudes
                     case END_SET_REQUESTS:
-                        cout << "Final de conjunto de solicitudes" << endl;
-                        endSetRequests(request);
+                        cout << "Fin de conjunto de solicitudes" << endl;
+                        endSetRequests(request, clock, processTimes);
                         break;
                     case EXIT:
                         cout << "Fin" << endl;
@@ -102,37 +114,59 @@ int main(void)
     } 
 }
 
-bool loadProcess(string request)
+/*
+ * Cargar un proceso
+ * Extrae el número de bytes y el número de proceso y carga el proceso en memoria real,
+ * asignando los marcos de página necesarios.
+ * 
+ * Registra el tiempo de inicio del proceso.
+*/
+bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes)
 {
-    // Number of bytes and process number
+    // Número de bytes y número de proceso
     string bytes = "", process = "";
-    // Initial position in request for argument extraction
+    // Posición inicial en la solicitud para extraer argumento
     int pos = 1;
 
-    // Try parsing number of bytes
+    // Intentar extraer el número de bytes
     if (!parseArg(bytes, request, pos))
     {
         cout << "El numero de bytes no pudo ser extraido" << endl;
         return false;
     }
-    // Try parsing process number
+    // Intentar extraer el número de proceso
     else if (!parseArg(process, request, pos))
     {
         cout << "El numero de proceso no pudo ser extraido" << endl;
         return false;
     }
-    // Success
+    // Éxito: los argumentos fueron extraídos con éxito
     else
     {
+        // Casting de argumentos a números enteros
         int n = stoi(bytes);
         int p = stoi(process);
+
+        // Debugging: valor de n y p
         cout << n << " " << p << endl;
+
+        // Registramos el tiempo de inicio del proceso
+        processTimes[p].push_back(clock);
 
         /* Aquí se carga el proceso según sea FIFO o LRU*/
 
         return true;
     }
 }
+
+/*
+ * Accede a una dirección de memoria virtual
+ * Extrae la dirección de memoria virtual, el número de proceso y el modificador.
+ * 
+ * Page faults
+ * 
+ * Swapping
+*/
 
 bool accessVirtualAddress(string request) {
     // Virtual address, process number and modifier
@@ -172,7 +206,13 @@ bool accessVirtualAddress(string request) {
     }
 }
 
-bool freeProcess(string request)
+/*
+ * Libera a un proceso
+ * Extrae el número de proceso y libera todas sus páginas, en memoria real y en swapping.
+ * 
+ * Registra el tiempo de terminación del proceso.
+*/
+bool freeProcess(string request, double &clock, map<int, vector<int>> &processTimes)
 {
     // Virtual address, process number and modifier
     string process = "";
@@ -192,9 +232,53 @@ bool freeProcess(string request)
         cout << p << endl;
 
         /* Aquí se libera el proceso*/
-
+        processTimes[p].push_back(clock);
         return true;
     }
+}
+
+/*
+ * Libera a un proceso.
+ * Método exclusivo para liberar un proceso cuando aún no ha ocurrido al momento
+ * de terminar un conjunto de solicitudes.
+*/
+bool freeProcess(int p, double &clock, map<int, vector<int>> &processTimes)
+{
+    /* Aquí se libera el proceso*/
+    processTimes[p].push_back(clock);
+    return true;
+}
+
+void comment(string request)
+{
+    
+}
+
+
+/*
+ * Termina un conjunto de solicitudes
+ *
+ * Termina los procesos que quedaron en ejecución en el momento actual.
+ * Calcula el turnaround time de todos los procesos.
+ * 
+*/
+void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes) 
+{
+    double turnaroundTime;
+
+    // Calcula el turnaround time de cada proceso
+    for (map<int, vector<int>>::iterator it = processTimes.begin(); it != processTimes.end(); it++)
+    {
+        // Libera el proceso actual si no ha sido liberado
+        if (it->second.size() < 2)
+            freeProcess(it->first, clock, processTimes);
+            
+        // Realiza el cálculo si el proceso fue liberado
+        turnaroundTime = it->second[END_TIME] - it->second[START_TIME];
+        
+        cout << it->first << " " << turnaroundTime << endl;
+    }
+    
 }
 
 /*
