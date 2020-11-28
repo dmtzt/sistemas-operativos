@@ -1,0 +1,35 @@
+TESTS
+
+Solicitudes
+1   El tipo de solicitud es una letra
+
+Extracción de argumentos
+1   Extrae argumentos separados por más de un espacio
+2   Extrae argumentos con espacios al final
+3   Indica error si no hay argumentos
+    a. Si no hay espacios
+    b. Si hay puros espacios
+
+P n p
+1   n, p existen
+2   n es un número
+3   p es un número
+
+bool prevWasDigit = false;
+
+    while (prevWasDigit == false  request[pos] != ' ')
+    {
+        if (isdigit(request[pos]))
+        {
+            prevWasDigit = true;    
+            arg += request[pos];
+        }
+        else
+            prevWasDigit = false;
+            
+        pos++;
+    }
+
+A   63 4  0          |
+
+P 96 6|
