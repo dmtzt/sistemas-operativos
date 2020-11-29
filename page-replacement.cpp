@@ -1,7 +1,8 @@
 #define MEMORY_SIZE 2048
 #define SWAPPING_SIZE 4096
 #define PAGE_SIZE 16
-#define MARCO_PAGINA 128
+#define NUMBER_FRAMES_MEMORY 128
+#define NUMBER_FRAMES_SWAPPING 256
 
 #define LOAD 'P'
 #define ACCESS 'A'
@@ -13,6 +14,12 @@
 #define START_TIME 0
 #define END_TIME 1
 
+#define AVAILABLE false
+#define NOT_AVAILABLE true
+
+#define SWAP_TIME 1.0
+#define FREE_TIME 0.1
+
 #include <cctype>
 #include <iostream>
 #include <fstream>
@@ -23,14 +30,25 @@
 
 using namespace std;
 
+void init(bool *M, bool *S, bool *MP);
 bool parseArg(string &arg, string request, int &pos);
 bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes);
 bool accessVirtualAddress(string request);
-bool freeProcess(string request, double &clock, map<int, vector<int>> &processTimes);
+bool freeProcess(string request, double &clock, bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes);
+bool freeProcess(int p, double &clock, bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes);
 void comment(string request);
-void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes);
+void endSetRequests(string request, double &clock,  bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes);
 //void testString(string s);
 int findFreeMP();
+
+void byteToPage();
+void pageToByte();
 
 // Memoria real M de 2048 bytes, inicializada en false para simular vacía
 bool M[MEMORY_SIZE];
@@ -38,26 +56,21 @@ bool M[MEMORY_SIZE];
 // Área de swapping S de 4096 bytes, inicializada en false para simular vacía
 bool S[SWAPPING_SIZE];
 
-bool MP[MARCO_PAGINA];
+bool MP[NUMBER_FRAMES_MEMORY];
 
-int FreeMP = MARCO_PAGINA; //Contador para los marcos de página libres
-priority_queue<int, vector<int>, greater<int> > FreeMPqueue;
+//Contador para los marcos de página libres en memoria
+int FreeFramesMCount = NUMBER_FRAMES_MEMORY;
+//Contador para los marcos de página libres en swapping
+int FreeFramesSCount = NUMBER_FRAMES_SWAPPING;
+
+// Priority queue para registrar los marcos libres en memoria real
+priority_queue<int, vector<int>, greater<int> > FreeFramesMqueue;
+// Priority queue para registrar los marcos libres en área de swapping
+priority_queue<int, vector<int>, greater<int> > FreeFramesSqueue;
 
 int main(void)
 {
-    for(int i = 0; i < MEMORY_SIZE; i++)
-    {
-        M[i] = false;
-    }
-    for(int i = 0; i < SWAPPING_SIZE; i++)
-    {
-        S[i] = false;
-    }
-    for(int i = 0; i < MARCO_PAGINA; i++)
-    {
-        MP[i] = false;
-        FreeMPqueue.push(i);
-    }
+    init(M, S, MP);
 
     // Cada proceso tiene un mapa que indica el número de marco asignado a cada página
     // Mapa para almacenar los índices de cada proceso en la memoria real
@@ -114,7 +127,7 @@ int main(void)
                     // Liberar a un proceso
                     case FREE:
                         cout << "Liberar a un proceso: ";
-                        freeProcess(request, clock, processTimes);
+                        freeProcess(request, clock, M, S, indicesM, indicesS, processTimes);
                         break;
                     // Comentario
                     case COMMENT:
@@ -124,7 +137,7 @@ int main(void)
                     // Fin de conjunto de solicitudes
                     case END_SET_REQUESTS:
                         cout << "Fin de conjunto de solicitudes" << endl;
-                        endSetRequests(request, clock, processTimes);
+                        endSetRequests(request, clock, M, S, indicesM, indicesS, processTimes);
                         break;
                     case EXIT:
                         cout << "Fin" << endl;
@@ -134,6 +147,23 @@ int main(void)
                 }
             }
         }
+    }
+}
+
+void init(bool *M, bool *S, bool *MP)
+{
+    for(int i = 0; i < MEMORY_SIZE; i++)
+    {
+        M[i] = false;
+    }
+    for(int i = 0; i < SWAPPING_SIZE; i++)
+    {
+        S[i] = false;
+    }
+    for(int i = 0; i < NUMBER_FRAMES_MEMORY; i++)
+    {
+        MP[i] = false;
+        FreeFramesMqueue.push(i);
     }
 }
 
@@ -181,28 +211,27 @@ bool loadProcess(string request, double &clock, map<int, vector<int>> &processTi
         if (n > MEMORY_SIZE) //Verifica que el proceso no tenga tamaño mayor a 2048 bytes
         {
             cout << "El proceso no cabe en la memoria" << endl;
-            return true;
+            return false;
         }
 
-        int q = n/PAGE_SIZE; //Número de marcos de página que se requieren
-        if (n%PAGE_SIZE != 0)
-        {
-            q++;
-        }
+        //Número de marcos de página que se requieren
+        int q = n / PAGE_SIZE;
+        // Agregar un marco más si hubo bytes insuficientes para una página completa
+        q += (n%PAGE_SIZE != 0) ? 1 : 0;
 
-        if (q > FreeMPqueue.size())
+        if (q > FreeFramesMqueue.size())
         {
             cout <<"Hace falta un swapping" << endl; //Nomas pa ver si si jala
-            return true;
+            return false;
         }
 
         //Llenar la memoria y los marcos de pagina correspondientes
         for(int i = 0; i < q; i++)
         {
-            int MarcoAOcupar = FreeMPqueue.top();
+            int MarcoAOcupar = FreeFramesMqueue.top();
             MP[MarcoAOcupar] = true; //Ocupa el marco de página
             cout << "Se ocupo el marco de pagina: " << MarcoAOcupar << endl;    //Esto debe cambiarse, nomas pruebo que sí se ocupen
-            FreeMPqueue.pop();
+            FreeFramesMqueue.pop();
             int LeftLimit = MarcoAOcupar*PAGE_SIZE;
             int RightLimit = LeftLimit+PAGE_SIZE;
             for (int i = LeftLimit; i < RightLimit; i++)
@@ -268,7 +297,10 @@ bool accessVirtualAddress(string request) {
  *
  * Registra el tiempo de terminación del proceso.
 */
-bool freeProcess(string request, double &clock, map<int, vector<int>> &processTimes)
+
+bool freeProcess(string request, double &clock, bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes)
 {
     // Virtual address, process number and modifier
     string process = "";
@@ -288,8 +320,9 @@ bool freeProcess(string request, double &clock, map<int, vector<int>> &processTi
         cout << p << endl;
 
         /* Aquí se libera el proceso*/
-        processTimes[p].push_back(clock);
-        return true;
+        freeProcess(p, clock, M, S, indicesM, indicesS, processTimes);
+        
+        
     }
 }
 
@@ -298,9 +331,50 @@ bool freeProcess(string request, double &clock, map<int, vector<int>> &processTi
  * Método exclusivo para liberar un proceso cuando aún no ha ocurrido al momento
  * de terminar un conjunto de solicitudes.
 */
-bool freeProcess(int p, double &clock, map<int, vector<int>> &processTimes)
+bool freeProcess(int p, double &clock, bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes)
 {
-    /* Aquí se libera el proceso*/
+// Imprimir marcos de página liberados
+    cout << "Se liberan los marcos de página de memoria real: [";
+    // Liberar proceso en memoria real
+    for (map<int, int>::iterator it = indicesM[p].begin(); it != indicesM[p].end(); it++)
+    {
+        // Página liberada
+        int page = it->first;
+        // Marco de página liberado
+        int frame = it->second;
+        // Agregar frame liberado a priority queue
+        FreeFramesMqueue.push(frame);
+        // Actualizar el contador de frames libres
+        FreeFramesMCount++;
+        // Liberar bytes en M - PENDIEMTE
+        
+        // Actualiza reloj +0.1 segundos/página
+        clock += FREE_TIME;
+        
+        // Imprimir lista o fin de lista según sea o no el último marco liberado
+        cout << frame << ((next(it, 1) == indicesM[p].end()) ? ", " : "]");
+    }
+    
+    // Liberar proceso en área de swapping
+    for (map<int, int>::iterator it = indicesS[p].begin(); it != indicesS[p].end(); it++)
+    {
+        // Página liberada
+        int page = it->first;
+        // Marco de página liberado
+        int frame = it->second;
+        // Agregar frame liberado a priority queue
+        FreeFramesSqueue.push(frame);
+        // Actualizar el contador de frames libres
+        FreeFramesSCount++;
+        // Liberar bytes en S - PENDIEMTE
+        
+        // Actualiza reloj +0.1 segundos/página
+        clock += FREE_TIME;
+    }
+
+    // Registra tiempo final
     processTimes[p].push_back(clock);
     return true;
 }
@@ -318,7 +392,9 @@ void comment(string request)
  * Calcula el turnaround time de todos los procesos.
  *
 */
-void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes)
+void endSetRequests(string request, double &clock,  bool *M, bool *S, 
+                 map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
+                 map<int, vector<int>> &processTimes)
 {
     double turnaroundTime;
 
@@ -327,7 +403,7 @@ void endSetRequests(string request, double &clock, map<int, vector<int>> &proces
     {
         // Libera el proceso actual si no ha sido liberado
         if (it->second.size() < 2)
-            freeProcess(it->first, clock, processTimes);
+            freeProcess(it->first, clock, M, S, indicesM, indicesS, processTimes);
 
         // Realiza el cálculo si el proceso fue liberado
         turnaroundTime = it->second[END_TIME] - it->second[START_TIME];
@@ -419,7 +495,7 @@ void testString(string s)
 int findFreeMP() //Encuentra la posición del primer marco de página disponible, con el priority queue ya no hará falta
 {
     int MPcounter = 0;
-    for(int i = 0; i < MARCO_PAGINA; i++)
+    for(int i = 0; i < NUMBER_FRAMES_MEMORY; i++)
     {
         if (MP[i] == true)
         {
