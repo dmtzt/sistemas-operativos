@@ -73,6 +73,7 @@ Crear memoria real M de 2048 bytes
 Crear área reservada para swapping S de 4096 bytes
 Definir tamaño de página de 16 bytes
 
+Estructura
 índices en M: map<numProcess, map<numPage, numFrame>> indicesM
 Índices en S: map<numProcess, map<numPage, numFrame>> indicesS
     Si numFrame < 0, la página no está en dicha estructura

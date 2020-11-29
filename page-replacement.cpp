@@ -1,6 +1,7 @@
 #define MEMORY_SIZE 2048
 #define SWAPPING_SIZE 4096
 #define PAGE_SIZE 16
+#define MARCO_PAGINA 128
 
 #define LOAD 'P'
 #define ACCESS 'A'
@@ -18,6 +19,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <queue>
 
 using namespace std;
 
@@ -28,13 +30,34 @@ bool freeProcess(string request, double &clock, map<int, vector<int>> &processTi
 void comment(string request);
 void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes);
 //void testString(string s);
+int findFreeMP();
+
+// Memoria real M de 2048 bytes, inicializada en false para simular vacía
+bool M[MEMORY_SIZE];
+
+// Área de swapping S de 4096 bytes, inicializada en false para simular vacía
+bool S[SWAPPING_SIZE];
+
+bool MP[MARCO_PAGINA];
+
+int FreeMP = MARCO_PAGINA; //Contador para los marcos de página libres
+priority_queue<int, vector<int>, greater<int> > FreeMPqueue;
 
 int main(void)
 {
-    // Memoria real M de 2048 bytes
-    bool M[MEMORY_SIZE];
-    // Área de swapping S de 4096 bytes
-    bool S[SWAPPING_SIZE];
+    for(int i = 0; i < MEMORY_SIZE; i++)
+    {
+        M[i] = false;
+    }
+    for(int i = 0; i < SWAPPING_SIZE; i++)
+    {
+        S[i] = false;
+    }
+    for(int i = 0; i < MARCO_PAGINA; i++)
+    {
+        MP[i] = false;
+        FreeMPqueue.push(i);
+    }
 
     // Cada proceso tiene un mapa que indica el número de marco asignado a cada página
     // Mapa para almacenar los índices de cada proceso en la memoria real
@@ -111,14 +134,14 @@ int main(void)
                 }
             }
         }
-    } 
+    }
 }
 
 /*
  * Cargar un proceso
  * Extrae el número de bytes y el número de proceso y carga el proceso en memoria real,
  * asignando los marcos de página necesarios.
- * 
+ *
  * Registra el tiempo de inicio del proceso.
 */
 bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes)
@@ -155,6 +178,39 @@ bool loadProcess(string request, double &clock, map<int, vector<int>> &processTi
 
         /* Aquí se carga el proceso según sea FIFO o LRU*/
 
+        if (n > MEMORY_SIZE) //Verifica que el proceso no tenga tamaño mayor a 2048 bytes
+        {
+            cout << "El proceso no cabe en la memoria" << endl;
+            return true;
+        }
+
+        int q = n/PAGE_SIZE; //Número de marcos de página que se requieren
+        if (n%PAGE_SIZE != 0)
+        {
+            q++;
+        }
+
+        if (q > FreeMPqueue.size())
+        {
+            cout <<"Hace falta un swapping" << endl; //Nomas pa ver si si jala
+            return true;
+        }
+
+        //Llenar la memoria y los marcos de pagina correspondientes
+        for(int i = 0; i < q; i++)
+        {
+            int MarcoAOcupar = FreeMPqueue.top();
+            MP[MarcoAOcupar] = true; //Ocupa el marco de página
+            cout << "Se ocupo el marco de pagina: " << MarcoAOcupar << endl;    //Esto debe cambiarse, nomas pruebo que sí se ocupen
+            FreeMPqueue.pop();
+            int LeftLimit = MarcoAOcupar*PAGE_SIZE;
+            int RightLimit = LeftLimit+PAGE_SIZE;
+            for (int i = LeftLimit; i < RightLimit; i++)
+            {
+                M[i] = true; //Ocupa la memoria correspondiente al marco
+            }
+        }
+
         return true;
     }
 }
@@ -162,9 +218,9 @@ bool loadProcess(string request, double &clock, map<int, vector<int>> &processTi
 /*
  * Accede a una dirección de memoria virtual
  * Extrae la dirección de memoria virtual, el número de proceso y el modificador.
- * 
+ *
  * Page faults
- * 
+ *
  * Swapping
 */
 
@@ -209,7 +265,7 @@ bool accessVirtualAddress(string request) {
 /*
  * Libera a un proceso
  * Extrae el número de proceso y libera todas sus páginas, en memoria real y en swapping.
- * 
+ *
  * Registra el tiempo de terminación del proceso.
 */
 bool freeProcess(string request, double &clock, map<int, vector<int>> &processTimes)
@@ -251,7 +307,7 @@ bool freeProcess(int p, double &clock, map<int, vector<int>> &processTimes)
 
 void comment(string request)
 {
-    
+
 }
 
 
@@ -260,9 +316,9 @@ void comment(string request)
  *
  * Termina los procesos que quedaron en ejecución en el momento actual.
  * Calcula el turnaround time de todos los procesos.
- * 
+ *
 */
-void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes) 
+void endSetRequests(string request, double &clock, map<int, vector<int>> &processTimes)
 {
     double turnaroundTime;
 
@@ -272,20 +328,20 @@ void endSetRequests(string request, double &clock, map<int, vector<int>> &proces
         // Libera el proceso actual si no ha sido liberado
         if (it->second.size() < 2)
             freeProcess(it->first, clock, processTimes);
-            
+
         // Realiza el cálculo si el proceso fue liberado
         turnaroundTime = it->second[END_TIME] - it->second[START_TIME];
-        
+
         cout << it->first << " " << turnaroundTime << endl;
     }
-    
+
 }
 
 /*
  * Helper method
- * Parse a single argument from request, from the first digit found 
+ * Parse a single argument from request, from the first digit found
  * until a space to the right is found
- * 
+ *
  * The position variable is updated by reference for future extractions in same request
  *
  * Handles the following cases:
@@ -294,7 +350,7 @@ void endSetRequests(string request, double &clock, map<int, vector<int>> &proces
  * 3. Error: The argument is composed by non-digit characters
  * 4. Error: The argument is missing
 */
-bool parseArg(string &arg, string request, int &pos) 
+bool parseArg(string &arg, string request, int &pos)
 {
     // Validate function args
     if (pos >= request.length())
@@ -306,7 +362,7 @@ bool parseArg(string &arg, string request, int &pos)
     // Control state to know if prev char was a digit
     bool prevWasDigit = false;
 
-    // Iterate over the request and append digits to request arg as soon as 
+    // Iterate over the request and append digits to request arg as soon as
     // one is found, until they are over and one adjacent space is found
     while (pos < request.length())
     {
@@ -317,7 +373,7 @@ bool parseArg(string &arg, string request, int &pos)
             if (isdigit(request[pos]))
             {
                 // Change control state to true
-                prevWasDigit = true;    
+                prevWasDigit = true;
                 // Append digit
                 arg += request[pos];
             }
@@ -340,7 +396,7 @@ bool parseArg(string &arg, string request, int &pos)
         {
             //testString(arg);
             return true;
-        }        
+        }
     }
 
     // The last digit was the last char of the request, no subsequent spaces
@@ -355,7 +411,24 @@ bool parseArg(string &arg, string request, int &pos)
     return false;
 }
 
-void testString(string s) 
+void testString(string s)
 {
     cout << "|" << s << "|" << endl;
+}
+
+int findFreeMP() //Encuentra la posición del primer marco de página disponible, con el priority queue ya no hará falta
+{
+    int MPcounter = 0;
+    for(int i = 0; i < MARCO_PAGINA; i++)
+    {
+        if (MP[i] == true)
+        {
+            MPcounter++;
+        }
+        else
+        {
+            break;
+        }
+    }
+    return MPcounter;
 }
