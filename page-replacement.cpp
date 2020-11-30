@@ -50,6 +50,7 @@ void endSetRequests(string request);
 bool parseArgToInt(int &arg, string request, int &pos);
 void replaceFIFO(int p, int missingFrames);
 void swapOut(int frame);
+void swapIn(int process, int page);
 int findFreeMP();
 //void testString(string s);
 void printProcessFrames(int p);
@@ -95,8 +96,10 @@ int FreeFramesSCount = NUMBER_FRAMES_SWAPPING;
 priority_queue<int, vector<int>, greater<int> > FreeFramesMqueue;
 // Priority queue para registrar los marcos libres en área de swapping
 priority_queue<int, vector<int>, greater<int> > FreeFramesSqueue;
-// Queue de páginas par usar en FIFO
+// Queue de páginas para usar en FIFO
 queue<int> PagesFIFO;
+// Queue de páginas para usar en LRU
+queue<int> PagesLRU;
 
 int main(void)
 {
@@ -140,7 +143,7 @@ int main(void)
                     // Acceder a una direccion virtual
                     case ACCESS:
                       //  cout << "Acceder a una direccion virtual: ";
-                    //    accessVirtualAddress(request);
+                        accessVirtualAddress(request);
                         break;
                     // Liberar a un proceso
                     case FREE:
@@ -211,6 +214,11 @@ void init()
     while (!PagesFIFO.empty())
     {
         PagesFIFO.pop();
+    }
+
+    while (!PagesLRU.empty())
+    {
+        PagesLRU.pop();
     }
 }
 
@@ -379,6 +387,19 @@ bool accessVirtualAddress(string request)
         cout << d << " " << p << " " << m << endl;
 
         /* Aquí se accede a la memoria virtual del proceso*/
+        // Calcular página correspondiente a la dirección de memoria
+        int page = d / PAGE_SIZE + 1;
+
+        // Verificar que la página se encuentre en memoria
+        if (indicesM[p].find(page) != indicesM[p].end())
+        {
+            cout << "La pagina esta en memoria" << endl;
+        }
+        else
+        {
+            cout << "La pagina no esta en memoria" << endl;
+            swapIn(p, page);
+        }
 
         return true;
     }
@@ -631,6 +652,11 @@ void swapOut(int frame)
     // Ocupa todas las direcciones de memoria en el rango calculado
     for (int i = LeftLimitS; i < RightLimitS; i++)
         S[i] = true; //Ocupa la memoria correspondiente al marco
+}
+
+void swapIn(int process, int page)
+{
+
 }
 
 void testString(string s)
