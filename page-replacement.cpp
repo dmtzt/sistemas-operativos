@@ -17,8 +17,14 @@
 #define AVAILABLE false
 #define NOT_AVAILABLE true
 
-#define SWAP_TIME 1.0
+#define SWAPPING_TIME 1.0
+#define LOADING_TIME 1.0
 #define FREE_TIME 0.1
+
+#define UNASSIGNED_ARGUMENT 0
+
+#define FIFO 1
+#define LRU 2
 
 #include <cctype>
 #include <iostream>
@@ -31,9 +37,11 @@
 using namespace std;
 
 void init(bool *M, bool *S, bool *MP);
-bool parseArg(string &arg, string request, int &pos);
-bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes);
-bool accessVirtualAddress(string request);
+bool parseArgToInt(int &arg, string request, int &pos);
+bool validateRequestType(char requestType);
+bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes, 
+                 int replacementPolicy);
+bool accessVirtualAddress(string request, int replacementPolicy);
 bool freeProcess(string request, double &clock, bool *M, bool *S, 
                  map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
                  map<int, vector<int>> &processTimes);
@@ -49,6 +57,9 @@ int findFreeMP();
 
 void byteToPage();
 void pageToByte();
+
+// Política de reemplazo: seleccionar FIFO o LRU
+int replacementPolicy = FIFO;
 
 // Memoria real M de 2048 bytes, inicializada en false para simular vacía
 bool M[MEMORY_SIZE];
@@ -70,6 +81,7 @@ priority_queue<int, vector<int>, greater<int> > FreeFramesSqueue;
 
 int main(void)
 {
+    // Configuración inicial de memoria, swapping y marcos de página
     init(M, S, MP);
 
     // Cada proceso tiene un mapa que indica el número de marco asignado a cada página
@@ -106,7 +118,7 @@ int main(void)
             // Extraer tipo de solicitud
             requestType = request[0];
             // Verificar que se trate de una letra
-            if (isalpha(requestType))
+            if (validateRequestType(requestType))
             {
                 // Imprimir la solicitud
                 cout << request << endl;
@@ -117,17 +129,17 @@ int main(void)
                     // Cargar un proceso
                     case LOAD:
                     cout << "Cargar un proceso: ";
-                        loadProcess(request, clock, processTimes);
+                        loadProcess(request, clock, processTimes, replacementPolicy);
                         break;
                     // Acceder a una direccion virtual
                     case ACCESS:
                         cout << "Acceder a una direccion virtual: ";
-                        accessVirtualAddress(request);
+                        accessVirtualAddress(request, replacementPolicy);
                         break;
                     // Liberar a un proceso
                     case FREE:
                         cout << "Liberar a un proceso: ";
-                        freeProcess(request, clock, M, S, indicesM, indicesS, processTimes);
+                        //freeProcess(request, clock, M, S, indicesM, indicesS, processTimes);
                         break;
                     // Comentario
                     case COMMENT:
@@ -152,19 +164,31 @@ int main(void)
 
 void init(bool *M, bool *S, bool *MP)
 {
+    // Desocupar memoria real
     for(int i = 0; i < MEMORY_SIZE; i++)
     {
         M[i] = false;
     }
+    // Desocupar área de swapping
     for(int i = 0; i < SWAPPING_SIZE; i++)
     {
         S[i] = false;
     }
+    // Desocupar marcos de página
     for(int i = 0; i < NUMBER_FRAMES_MEMORY; i++)
     {
         MP[i] = false;
         FreeFramesMqueue.push(i);
     }
+}
+
+
+bool validateRequestType(char requestType)
+{
+    if (isalpha(requestType))
+        return true;
+
+    return false;
 }
 
 /*
@@ -174,21 +198,24 @@ void init(bool *M, bool *S, bool *MP)
  *
  * Registra el tiempo de inicio del proceso.
 */
-bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes)
+bool loadProcess(string request, double &clock, map<int, vector<int>> &processTimes,
+                 int replacementPolicy)
 {
     // Número de bytes y número de proceso
-    string bytes = "", process = "";
+    int n = 0;
+    int p = 0;
+    
     // Posición inicial en la solicitud para extraer argumento
     int pos = 1;
 
     // Intentar extraer el número de bytes
-    if (!parseArg(bytes, request, pos))
+    if (!parseArgToInt(n, request, pos))
     {
         cout << "El numero de bytes no pudo ser extraido" << endl;
         return false;
     }
     // Intentar extraer el número de proceso
-    else if (!parseArg(process, request, pos))
+    else if (!parseArgToInt(p, request, pos))
     {
         cout << "El numero de proceso no pudo ser extraido" << endl;
         return false;
@@ -197,30 +224,39 @@ bool loadProcess(string request, double &clock, map<int, vector<int>> &processTi
     else
     {
         // Casting de argumentos a números enteros
-        int n = stoi(bytes);
-        int p = stoi(process);
+        
 
         // Debugging: valor de n y p
         cout << n << " " << p << endl;
 
-        // Registramos el tiempo de inicio del proceso
+        // Registrar el tiempo de inicio del proceso
         processTimes[p].push_back(clock);
 
         /* Aquí se carga el proceso según sea FIFO o LRU*/
 
-        if (n > MEMORY_SIZE) //Verifica que el proceso no tenga tamaño mayor a 2048 bytes
+        //Verifica que el tamaño del proceso no exceda las dimensiones de la memoria
+        if (n > MEMORY_SIZE || n < 1) 
         {
-            cout << "El proceso no cabe en la memoria" << endl;
+            cout << "El proceso excede las dimensiones de la memoria" << endl;
             return false;
         }
 
         //Número de marcos de página que se requieren
         int q = n / PAGE_SIZE;
         // Agregar un marco más si hubo bytes insuficientes para una página completa
-        q += (n%PAGE_SIZE != 0) ? 1 : 0;
+        q += (n % PAGE_SIZE != 0) ? 1 : 0;
 
         if (q > FreeFramesMqueue.size())
         {
+            if (replacementPolicy == FIFO)
+            {
+                
+            }
+            else if (replacementPolicy == LRU)
+            {
+
+            }
+
             cout <<"Hace falta un swapping" << endl; //Nomas pa ver si si jala
             return false;
         }
@@ -253,26 +289,29 @@ bool loadProcess(string request, double &clock, map<int, vector<int>> &processTi
  * Swapping
 */
 
-bool accessVirtualAddress(string request) {
+bool accessVirtualAddress(string request, int replacementPolicy) {
     // Virtual address, process number and modifier
-    string address = "", process = "", modifier = "";
+    int d = 0;
+    int p = 0;
+    int m = 0;
+    
     // Initial position in request for argument extraction
     int pos = 1;
 
     // Try parsing virtual address
-    if (!parseArg(address, request, pos))
+    if (!parseArgToInt(d, request, pos))
     {
         cout << "La dirección virtual no pudo ser extraida" << endl;
         return false;
     }
     // Try parsing process number
-    else if (!parseArg(process, request, pos))
+    else if (!parseArgToInt(p, request, pos))
     {
         cout << "El numero de proceso no pudo ser extraido" << endl;
         return false;
     }
     // Try parsing modifier
-    else if (!parseArg(modifier, request, pos))
+    else if (!parseArgToInt(m, request, pos))
     {
         cout << "El modificador no pudo ser extraido" << endl;
         return false;
@@ -280,9 +319,7 @@ bool accessVirtualAddress(string request) {
     // Success
     else
     {
-        int d = stoi(address);
-        int p = stoi(process);
-        int m = stoi(modifier);
+        
         cout << d << " " << p << " " << m << endl;
 
         /* Aquí se accede a la memoria virtual del proceso*/
@@ -302,13 +339,13 @@ bool freeProcess(string request, double &clock, bool *M, bool *S,
                  map<int, map<int, int> > indicesM, map<int, map<int, int> > indicesS, 
                  map<int, vector<int>> &processTimes)
 {
-    // Virtual address, process number and modifier
-    string process = "";
+    // Número de proceso
+    int p = 0;
     // Initial position in request for argument extraction
     int pos = 1;
 
     // Try parsing process number
-    if (!parseArg(process, request, pos))
+    if (!parseArgToInt(p, request, pos))
     {
         cout << "El numero de proceso no pudo ser extraido" << endl;
         return false;
@@ -316,7 +353,7 @@ bool freeProcess(string request, double &clock, bool *M, bool *S,
     // Success
     else
     {
-        int p = stoi(process);
+        
         cout << p << endl;
 
         /* Aquí se libera el proceso*/
@@ -426,7 +463,7 @@ void endSetRequests(string request, double &clock,  bool *M, bool *S,
  * 3. Error: The argument is composed by non-digit characters
  * 4. Error: The argument is missing
 */
-bool parseArg(string &arg, string request, int &pos)
+bool parseArgToInt(int &arg, string request, int &pos)
 {
     // Validate function args
     if (pos >= request.length())
@@ -437,6 +474,8 @@ bool parseArg(string &arg, string request, int &pos)
 
     // Control state to know if prev char was a digit
     bool prevWasDigit = false;
+
+    string str = "";
 
     // Iterate over the request and append digits to request arg as soon as
     // one is found, until they are over and one adjacent space is found
@@ -451,7 +490,7 @@ bool parseArg(string &arg, string request, int &pos)
                 // Change control state to true
                 prevWasDigit = true;
                 // Append digit
-                arg += request[pos];
+                str += request[pos];
             }
             // If a space is found
             else if (request[pos] == ' ')
@@ -471,6 +510,7 @@ bool parseArg(string &arg, string request, int &pos)
         else
         {
             //testString(arg);
+            arg = stoi(str);
             return true;
         }
     }
@@ -479,6 +519,7 @@ bool parseArg(string &arg, string request, int &pos)
     if (pos == request.length() && prevWasDigit)
     {
         //testString(arg);
+        arg = stoi(str);
         return true;
     }
 
