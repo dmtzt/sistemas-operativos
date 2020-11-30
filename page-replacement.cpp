@@ -167,7 +167,7 @@ int main(void)
                     // Liberar a un proceso
                     case FREE:
                         //cout << "Liberar a un proceso: ";
-                        //freeProcess(request);
+                        freeProcess(request);
                         break;
                     // Comentario
                     case COMMENT:
@@ -489,28 +489,71 @@ bool freeProcess(string request)
 */
 bool freeProcess(int p)
 {
-// Imprimir marcos de página liberados
-    cout << "Se liberan los marcos de página de memoria real: [";
-    // Liberar proceso en memoria real
-    for (map<int, int>::iterator it = indicesM[p].begin(); it != indicesM[p].end(); it++)
+
+/*
+ * Durante operaciones de swap-in i swap-out las siguientes estructuras son modificadas:
+ * 
+ * S
+ * indicesS
+ * indicesFrameProcessS
+ * FreeFramesSQueue
+ * FreeFramesSCount
+ * 
+ * clock
+ * pageFaultsCount
+ * 
+*/
+
+    // Imprimir marcos de página liberados
+    if(indicesM.find(p) == indicesM.end())
     {
-        // Página liberada
-        int page = it->first;
-        // Marco de página liberado
-        int frame = it->second;
-        // Agregar frame liberado a priority queue
-        FreeFramesMqueue.push(frame);
-        // Actualizar el contador de frames libres
-        FreeFramesMCount++;
-        // Liberar bytes en M - PENDIEMTE
-        
-        // Actualiza reloj +0.1 segundos/página
-        clock += FREE_TIME;
-        
-        // Imprimir lista o fin de lista según sea o no el último marco liberado
-        cout << frame << ((next(it, 1) == indicesM[p].end()) ? ", " : "]");
+        cout << "El proceso no fue cargado en memoria" << endl;
+        return false;
     }
-    
+
+    if (indicesM[p].size() == 0)
+    {
+        cout << "El proceso no tiene marcos asignados en memoria principal" << endl;
+    }
+    else
+    {
+        cout << "Se liberan los marcos de página de memoria real: [";
+        // Liberar proceso en memoria real
+        for (map<int, int>::iterator it = indicesM[p].begin(); it != indicesM[p].end(); it++)
+        {
+            // Página liberada
+            int page = it->first;
+            // Marco de página liberado
+            int frame = it->second;
+            // Agregar frame liberado a priority queue
+            FreeFramesMqueue.push(frame);
+            // Actualizar el contador de frames libres
+            FreeFramesMCount++;
+
+            // Liberar rango de direcciones de memoria principal
+            // Calcula las direcciones de memoria iniciales y finales del marco
+            int LeftLimit = frame*PAGE_SIZE;
+            int RightLimit = LeftLimit+PAGE_SIZE;
+
+            // Libera todas las direcciones de memoria en el rango calculado
+            for (int i = LeftLimit; i < RightLimit; i++)
+                M[i] = false; //Libera la memoria correspondiente al marco
+
+            // Vaciar registros marco-proceso-página
+            indicesFrameProcessM[frame].clear();
+            
+            // Actualiza reloj +0.1 segundos/página
+            clock += FREE_TIME;
+            
+            // Imprimir lista o fin de lista según sea o no el último marco liberado
+            cout << frame << ((next(it, 1) != indicesM[p].end()) ? ", " : "]");
+        }
+
+        cout << endl;
+
+        indicesM[p].clear();
+    }
+
     // Liberar proceso en área de swapping
     for (map<int, int>::iterator it = indicesS[p].begin(); it != indicesS[p].end(); it++)
     {
@@ -522,11 +565,24 @@ bool freeProcess(int p)
         FreeFramesSqueue.push(frame);
         // Actualizar el contador de frames libres
         FreeFramesSCount++;
-        // Liberar bytes en S - PENDIEMTE
+
+        // Liberar rango de direcciones de memoria principal
+        // Calcula las direcciones de memoria iniciales y finales del marco
+        int LeftLimit = frame*PAGE_SIZE;
+        int RightLimit = LeftLimit+PAGE_SIZE;
+
+        // Libera todas las direcciones de memoria en el rango calculado
+        for (int i = LeftLimit; i < RightLimit; i++)
+            S[i] = false; //Libera la memoria correspondiente al marco
+
+        // Vaciar registros marco-proceso-página
+        indicesFrameProcessS[frame].clear();
         
         // Actualiza reloj +0.1 segundos/página
         clock += FREE_TIME;
     }
+
+    indicesS[p].clear();
 
     // Registra tiempo final
     processTimes[p].push_back(clock);
