@@ -1,20 +1,27 @@
 /*
- * Durante operaciones de swap-in i swap-out las siguientes estructuras son modificadas:
- * M
- * indicesM
- * indicesFrameProcessM
- * FreeFramesMQueue
- * FreeFramesMCount
+ * Administrador de memoria
+ * Sistemas operativos
+ * Tecnológico de Monterrey
  * 
- * S
- * indicesS
- * indicesFrameProcessS
- * FreeFramesSQueue
- * FreeFramesSCount
+ * Equipo 1
+ * A01561977 ITC11 Juan Carlos Gómez
+ * A01610267 ITC11 David Alejandro Martínez
+ * A01365919 ITC11 Ernesto García
  * 
- * clock
- * pageFaultsCount
+ * Administra una memoria de 2048 bytes con técnica de paginación.
+ * Ejecuta una política de reemplazo FIFO con un tamaño de página de 16 bytes y
+ * con apoyo de un área de swapping de 4096 bytes.
+ * Lee solicitudes de un archivo de texto y carga, accede y libera procesos 
+ * de un tamaño determinado.
+ * Muestra un reporte de métricas al final:
+ *  Turnaround time
+ *  Turnaround time promedio
+ *  Número de page faults por proceso
+ *  Número total de operaciones de swapping por proceso
  * 
+ * C++11
+ * 
+ * Noviembre de 2020
 */
 #define MEMORY_SIZE 2048
 #define SWAPPING_SIZE 4096
@@ -35,9 +42,10 @@
 #define AVAILABLE false
 #define NOT_AVAILABLE true
 
-#define SWAPPING_TIME 1.0
 #define LOADING_TIME 1.0
+#define ACCESING_TIME 0.1
 #define FREE_TIME 0.1
+#define SWAPPING_TIME 1.0
 
 #define UNASSIGNED_ARGUMENT 0
 
@@ -70,11 +78,8 @@ void replaceFIFO(int missingFrames);
 void swapOut(int frame);
 void swapIn(int process, int page);
 int findFreeMP();
-//void testString(string s);
 void printProcessFrames(int p);
-
-//void byteToPage();
-//void pageToByte();
+bool processExists(int p);
 
 // Política de reemplazo: seleccionar FIFO o LRU
 int replacementPolicy;
@@ -110,6 +115,9 @@ priority_queue<int, vector<int>, greater<int> > FreeFramesMqueue;
 // Priority queue para registrar los marcos libres en área de swapping
 priority_queue<int, vector<int>, greater<int> > FreeFramesSqueue;
 
+// Estructura para verificar si los marcos asignados son continuos o intermitentes
+map<int, bool> ContinuosOno;
+
 //Contador para los marcos de página libres en memoria
 int FreeFramesMCount = NUMBER_FRAMES_MEMORY;
 //Contador para los marcos de página libres en swapping
@@ -119,6 +127,8 @@ int FreeFramesSCount = NUMBER_FRAMES_SWAPPING;
 queue<int> PagesFIFO;
 // Queue de páginas para usar en LRU
 queue<int> PagesLRU;
+
+int SwappingOperationsCount;
 
 int main(void)
 {
@@ -133,6 +143,8 @@ int main(void)
     string request;
     // Tipo de solicitud
     char requestType;
+    // Bandera de salida
+    bool exitFlag = false;
 
     /////////////////////////////////////////////////////////////////////////////////////
     // Abrir archivo
@@ -177,16 +189,23 @@ int main(void)
                     // Fin de conjunto de solicitudes
                     case END_SET_REQUESTS:
                        // cout << "Fin de conjunto de solicitudes" << endl;
-                    //    endSetRequests(request);
+                        endSetRequests(request);
                         break;
                     case EXIT:
-                        //cout << "Fin" << endl;
+                        exitFlag = true;
                         break;
                     default:
                         break;
                 }
+
+                cout << endl;
+
+                if (exitFlag)
+                    break;
             }
         }
+
+        cout << "Fin del programa." << endl;
     }
 }
 
@@ -243,6 +262,8 @@ void init()
     {
         PagesLRU.pop();
     }
+
+    SwappingOperationsCount = 0;
 }
 
 
@@ -285,11 +306,10 @@ bool loadProcess(string request)
     // Éxito: los argumentos fueron extraídos con éxito
     else
     {
-        // Debugging: valor de n y p
-        cout << n << " " << p << endl;
-
-        // Registrar el tiempo de inicio del proceso
-        processTimes[p].push_back(clock);
+        // Imprimir todas las líneas solicitadas por la rúbrica
+        // Imprimir solicitud
+        cout << request << endl;
+        cout << "Asignar " << n << " bytes al proceso " << p << endl;
 
         /* Aquí se carga el proceso según sea FIFO o LRU*/
 
@@ -299,6 +319,9 @@ bool loadProcess(string request)
             cout << "El proceso excede las dimensiones de la memoria" << endl;
             return false;
         }
+
+        // Registrar el tiempo de inicio del proceso
+        processTimes[p].push_back(clock);
 
         //Número de marcos de página que se requieren
         int q = n / PAGE_SIZE;
@@ -333,6 +356,8 @@ bool loadProcess(string request)
             return false;
         }
 
+        ContinuosOno[p] = true;
+
         //Llena la memoria y los marcos de página correspondientes
         for(int i = 0; i < q; i++)
         {
@@ -342,6 +367,14 @@ bool loadProcess(string request)
 
             // Insertar página y marco de página en el índice del proceso actual
             indicesM[p][i] = MarcoAOcupar;
+            
+
+            if (i > 0)
+            {
+                if(indicesM[p][i - 1] != indicesM[p][i] - 1 && ContinuosOno[p] == true)
+                    ContinuosOno[p] = false;
+            }
+            
             
             // Guardamos proceso y número de página correspondientes al marco actual
             indicesFrameProcessM[MarcoAOcupar].push_back(p);
@@ -363,10 +396,36 @@ bool loadProcess(string request)
             // Ocupa todas las direcciones de memoria en el rango calculado
             for (int i = LeftLimit; i < RightLimit; i++)
                 M[i] = true; //Ocupa la memoria correspondiente al marco
+
+            clock += LOADING_TIME;
         }
 
         // DEBUGGING: Imprimir los marcos del proceso
-        printProcessFrames(p);
+        //printProcessFrames(p);
+
+        // Imprimir rango de marcos de página según la rúbrica
+
+        if (ContinuosOno[p] == false)
+        {
+            cout << "Se asignaron los marcos de pagina [";
+            for (int i = 0; i < q; i++)
+            {
+                //cout << indicesM[p][i] << (i < q - 1) ? ", " : "]";
+                if (i < q-1)
+                {
+                    cout << indicesM[p][i] << ", ";
+                }
+                else
+                {
+                    cout << indicesM[p][i] << "]" << endl;
+                }
+                
+            }
+        }
+        else
+        {
+            cout << "Se asignaron los marcos de página " << indicesM[p][0] << "-" << indicesM[p][indicesM[p].size() - 1] << " al proceso " << p << endl;
+        }
 
         return true;
     }
@@ -412,11 +471,23 @@ bool accessVirtualAddress(string request)
     // Success
     else
     {
-        cout << d << " " << p << " " << m << endl;
-
+        if (!processExists(p))
+            return false;
         /* Aquí se accede a la memoria virtual del proceso*/
         // Calcular página correspondiente a la dirección de memoria virtual
         int page = d / PAGE_SIZE + 1;
+
+        // Imprimir solicitud
+        cout << request << endl;
+        if (m == 0)
+        {
+            cout << "Obtener la dirección real correspondiente a la dirección virtual " << d << " del proceso " << p << endl;
+        }
+        else
+        {
+            cout << "Obtener la dirección real correspondiente a la dirección virtual " << d << " del proceso " << p << " y modificar dicha direccion"<< endl;   
+            cout << "Pagina " << page << " del proceso " << p << " modificada." << endl;
+        }
 
         // Verificar que la página se encuentre en memoria
         if (indicesM[p].find(page) != indicesM[p].end())
@@ -428,8 +499,11 @@ bool accessVirtualAddress(string request)
             cout << "La pagina no esta en memoria" << endl;
             if (replacementPolicy == FIFO)
             {
-                swapOut(PagesFIFO.front());
-                PagesFIFO.pop();
+                if (!PagesFIFO.empty())
+                {
+                    swapOut(PagesFIFO.front());
+                    PagesFIFO.pop();
+                }
             }
             else if (replacementPolicy == LRU)
             {
@@ -444,8 +518,9 @@ bool accessVirtualAddress(string request)
         // Dirección real
         int realAddress = indicesM[p][page] * PAGE_SIZE + (d % PAGE_SIZE);
 
-        cout << "La direccion virtual es: " << virtualAddress << endl;
-        cout << "La direccion real es: " << realAddress << endl;
+        cout << "Direccion virtual: " << virtualAddress << ". Dirección real: " << realAddress << endl;
+
+        clock += ACCESING_TIME;
 
         return true;
     }
@@ -474,8 +549,9 @@ bool freeProcess(string request)
     // Success
     else
     {
-        
-        cout << p << endl;
+        // Imprimir solicitud
+        cout << request << endl;
+        cout << "Liberar los marcos de pagina ocupados por el proceso " << p << endl;
 
         /* Aquí se libera el proceso*/
         freeProcess(p);  
@@ -507,15 +583,11 @@ bool freeProcess(int p)
     // Imprimir marcos de página liberados
     if(indicesM.find(p) == indicesM.end())
     {
-        cout << "El proceso no fue cargado en memoria" << endl;
+        //cout << "El proceso no fue cargado en memoria" << endl;
         return false;
     }
 
-    if (indicesM[p].size() == 0)
-    {
-        cout << "El proceso no tiene marcos asignados en memoria principal" << endl;
-    }
-    else
+    if (indicesM[p].size() > 0)
     {
         cout << "Se liberan los marcos de página de memoria real: [";
         // Liberar proceso en memoria real
@@ -542,11 +614,11 @@ bool freeProcess(int p)
             // Vaciar registros marco-proceso-página
             indicesFrameProcessM[frame].clear();
             
-            // Actualiza reloj +0.1 segundos/página
-            clock += FREE_TIME;
-            
             // Imprimir lista o fin de lista según sea o no el último marco liberado
             cout << frame << ((next(it, 1) != indicesM[p].end()) ? ", " : "]");
+
+            // Actualiza reloj +0.1 segundos/página
+            clock += FREE_TIME;
         }
 
         cout << endl;
@@ -591,7 +663,8 @@ bool freeProcess(int p)
 
 void comment(string request)
 {
-
+    // Imprimir solicitud
+    cout << request << endl;
 }
 
 
@@ -605,19 +678,45 @@ void comment(string request)
 void endSetRequests(string request)
 {
     double turnaroundTime;
+    double turnaroundTimeMean = 0.0;
+
+    // Imprimir solicitud
+    cout << request << endl;
+    cout << "Fin. Reporte de salida:" << endl;
 
     // Calcula el turnaround time de cada proceso
     for (map<int, vector<int>>::iterator it = processTimes.begin(); it != processTimes.end(); it++)
     {
-        // Libera el proceso actual si no ha sido liberado
-        if (it->second.size() < 2)
-            freeProcess(it->first);
+        if (processExists(it->first))
+        {
+            // Libera el proceso actual si no ha sido liberado
+            if (it->second.size() < 2)
+                freeProcess(it->first);
 
-        // Realiza el cálculo si el proceso fue liberado
-        turnaroundTime = it->second[END_TIME] - it->second[START_TIME];
+            // Realiza el cálculo si el proceso fue liberado
+            turnaroundTime = it->second[END_TIME] - it->second[START_TIME];
+        }
+        else
+            turnaroundTime = 0;
 
-        cout << it->first << " " << turnaroundTime << endl;
+        // Imprimir turnaround time por proceso
+        cout << "Turnaround time para el proceso " << it->first << ": " << turnaroundTime << endl;
+
+        // Agregar turnaround time al promedio
+        turnaroundTimeMean += turnaroundTime;
+
+        // Imprimir número de page faults por proceso
+        cout << "Page faults ocurridos para el proceso: "<< it->first << ": " << pageFaultsCount[it->first] << endl;
     }
+
+    // Imprimir turnaround promedio
+    turnaroundTimeMean / processTimes.size();
+    cout << "Turnaround promedio: " << turnaroundTimeMean << endl;
+
+    // Imprimir número total de operaciones de swapping
+    cout << "Numero de operaciones de swapping: " << SwappingOperationsCount << endl;
+
+    init();
 }
 
 /*
@@ -702,14 +801,21 @@ void replaceFIFO(int missingFrames)
 {
     for (int i = 0; i < missingFrames; i++)
     {
-        int frame = PagesFIFO.front();
-        PagesFIFO.pop();
-        swapOut(frame);
+        if (!PagesFIFO.empty())
+        {
+            int frame = PagesFIFO.front();
+            PagesFIFO.pop();
+            swapOut(frame);
+        }
+        
     }
 }
 
 void swapOut(int frame)
 {
+    SwappingOperationsCount++;
+    clock += SWAPPING_TIME;
+
     int process = indicesFrameProcessM[frame][PROCESS_INDEX];
     int page = indicesFrameProcessM[frame][PAGE_INDEX];
 
@@ -719,7 +825,7 @@ void swapOut(int frame)
     // Eliminar registro del índice de marcos de memoria
     indicesFrameProcessM.erase(frame);
     // DEBUGGING
-    cout << "Marco " << frame << " liberado de M" <<endl;
+    //cout << "Marco " << frame << " liberado de M" <<endl;
 
     // Liberar rango de direcciones de memoria principal
     // Calcula las direcciones de memoria iniciales y finales del marco
@@ -760,17 +866,25 @@ void swapOut(int frame)
     // Ocupa todas las direcciones de memoria en el rango calculado
     for (int i = LeftLimitS; i < RightLimitS; i++)
         S[i] = true; //Ocupa la memoria correspondiente al marco
+
+    cout << "Se localizo la pagina " << page << " del proceso " << process << " que estaba en la posición " << frameS << " y se cargo al marco " << frame << endl;
 }
 
 void swapIn(int process, int page)
 {
+    SwappingOperationsCount++;
+    clock += SWAPPING_TIME;
+
+    // Actualizar número de page faults del proceso
+    pageFaultsCount[process]++;
+
     /////////////////////////// Swapping ///////////////////////////
     int frame = indicesS[process][page];
     indicesS[process].erase(page);
     indicesFrameProcessS.erase(frame);
     FreeFramesSqueue.push(frame);
     FreeFramesSCount++;
-    cout << "Marco " << frame << " liberado de S" <<endl;
+    //cout << "Marco " << frame << " liberado de S" <<endl;
 
     // Calcula las direcciones de memoria iniciales y finales del marco
     int LeftLimitS = frame*PAGE_SIZE;
@@ -802,7 +916,9 @@ void swapIn(int process, int page)
     for (int i = LeftLimitM; i < RightLimitM; i++)
         M[i] = true; //Libera la memoria correspondiente al marco
 
-    cout << "Marco " << frameM << " agregado a M" << endl;
+    
+    cout << "Pagina " << page << " del proceso " << process << " swappeada al marco " << frame << "del area de swapping" <<endl;
+    //cout << "Marco " << frameM << " agregado a M" << endl;
 }
 
 void testString(string s)
@@ -818,4 +934,12 @@ void printProcessFrames(int p)
         cout << indicesM[p][i] << " ";
 
     cout << endl;
+}
+
+bool processExists(int p)
+{
+    if (indicesM.find(p) != indicesM.end() || indicesS.find(p) != indicesM.end()) 
+        return true;
+
+    return false;
 }
