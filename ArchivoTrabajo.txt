@@ -1,5 +1,5 @@
 C archivo de prueba para FIFO, LRU
-P 32 2 que pedo plebes             
+P 32 2 que onda plebes             
 P 48 3             
 P 63 4             
 L 3                   

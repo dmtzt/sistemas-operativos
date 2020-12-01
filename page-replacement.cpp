@@ -22,7 +22,7 @@
  * Lenguaje utilizado: C++
  * Versión utilizada: C++11
  * Total de líneas: 953
- * Total de líneas sin comentarios: 674
+ * Total de líneas sin comentarios: 670
  *
  * Noviembre de 2020
 */
@@ -314,7 +314,7 @@ bool loadProcess(string request)
     {
         // Imprimir todas las líneas solicitadas por la rúbrica
         // Imprimir solicitud
-        cout << request << endl;
+        cout << request[0] << " " << n << " " << p << endl;
         cout << "Asignar " << n << " bytes al proceso " << p << endl;
 
         /* Aquí se carga el proceso según sea FIFO o LRU*/
@@ -339,7 +339,7 @@ bool loadProcess(string request)
         if (q > FreeFramesMCount)
         {
             // DEBUGGING
-            cout << "Hacen falta " << (q - FreeFramesMCount) << " marcos" << endl;
+            //cout << "Hacen falta " << (q - FreeFramesMCount) << " marcos" << endl;
 
             // Validar que haya suficiente espacio en área de swapping
             if (FreeFramesSCount >= (q - FreeFramesMCount))
@@ -432,7 +432,7 @@ bool loadProcess(string request)
         }
         else
         {
-            cout << "Se asignaron los marcos de página " << indicesM[p][0] << "-" << indicesM[p][indicesM[p].size() - 1] << " al proceso " << p << endl;
+            cout << "Se asignaron los marcos de pagina " << indicesM[p][0] << "-" << indicesM[p][indicesM[p].size() - 1] << " al proceso " << p << endl;
         }
 
         return true;
@@ -461,7 +461,7 @@ bool accessVirtualAddress(string request)
     // Try parsing virtual address
     if (!parseArgToInt(d, request, pos))
     {
-        cout << "La dirección virtual no pudo ser extraida" << endl;
+        cout << "La direccion virtual no pudo ser extraida" << endl;
         return false;
     }
     // Try parsing process number
@@ -489,22 +489,22 @@ bool accessVirtualAddress(string request)
         cout << request << endl;
         if (m == 0)
         {
-            cout << "Obtener la dirección real correspondiente a la dirección virtual " << d << " del proceso " << p << endl;
+            cout << "Obtener la direccion real correspondiente a la direccion virtual " << d << " del proceso " << p << endl;
         }
         else
         {
-            cout << "Obtener la dirección real correspondiente a la dirección virtual " << d << " del proceso " << p << " y modificar dicha direccion"<< endl;
+            cout << "Obtener la direccion real correspondiente a la direccion virtual " << d << " del proceso " << p << " y modificar dicha direccion"<< endl;
             cout << "Pagina " << page << " del proceso " << p << " modificada." << endl;
         }
 
         // Verificar que la página se encuentre en memoria
         if (indicesM[p].find(page) != indicesM[p].end())
         {
-            cout << "La pagina esta en memoria" << endl;
+            //cout << "La pagina esta en memoria" << endl;
         }
         else
         {
-            cout << "La pagina no esta en memoria" << endl;
+            //cout << "La pagina no esta en memoria" << endl;
             if (replacementPolicy == FIFO)
             {
                 if (!PagesFIFO.empty())
@@ -526,7 +526,7 @@ bool accessVirtualAddress(string request)
         // Dirección real
         int realAddress = indicesM[p][page] * PAGE_SIZE + (d % PAGE_SIZE);
 
-        cout << "Direccion virtual: " << virtualAddress << ". Dirección real: " << realAddress << endl;
+        cout << "Direccion virtual: " << virtualAddress << ". Direccion real: " << realAddress << endl;
 
         clock += ACCESING_TIME;
 
@@ -860,7 +860,7 @@ void swapOut(int frame)
     // Guardamos proceso y número de página correspondientes al marco actual
     indicesFrameProcessS[frameS].push_back(process);
     indicesFrameProcessS[frameS].push_back(page);
-    cout << "Marco " << frameS << " agregado a S" << endl;
+    //cout << "Marco " << frameS << " agregado a S" << endl;
 
     //cout << endl << "El marco " << MarcoAOcupar << " pertenece al proceso: "<< indicesFrameProcessM[MarcoAOcupar][PROCESS_INDEX] << endl;
 
@@ -875,7 +875,7 @@ void swapOut(int frame)
     for (int i = LeftLimitS; i < RightLimitS; i++)
         S[i] = true; //Ocupa la memoria correspondiente al marco
 
-    cout << "Se localizo la pagina " << page << " del proceso " << process << " que estaba en la posición " << frameS << " y se cargo al marco " << frame << endl;
+    cout << "Se localizo la pagina " << page << " del proceso " << process << " que estaba en la posicion " << frameS << " y se cargo al marco " << frame << endl;
 }
 
 void swapIn(int process, int page)
@@ -925,7 +925,7 @@ void swapIn(int process, int page)
         M[i] = true; //Libera la memoria correspondiente al marco
 
 
-    cout << "Pagina " << page << " del proceso " << process << " swappeada al marco " << frame << "del area de swapping" <<endl;
+    cout << "Pagina " << page << " del proceso " << process << " swappeada al marco " << frame << " del area de swapping" <<endl;
     //cout << "Marco " << frameM << " agregado a M" << endl;
 }
 
