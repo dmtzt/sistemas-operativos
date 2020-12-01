@@ -22,7 +22,7 @@
  * Lenguaje utilizado: C++
  * Versión utilizada: C++11
  * Total de líneas: 953
- * Total de líneas sin comentarios:
+ * Total de líneas sin comentarios: 674
  *
  * Noviembre de 2020
 */
